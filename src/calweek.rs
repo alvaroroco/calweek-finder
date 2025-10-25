@@ -4,20 +4,20 @@ fn get_week_number(date_obj: NaiveDate) -> u32 {
     date_obj.iso_week().week()
 }
 
-pub fn get_status_by_date(date: NaiveDate) -> String {
+pub fn get_calweek_by_date(date: NaiveDate) -> String {
     let year: String = format!("{:02}", date.year() % 100);
     let week_number: u32 = get_week_number(date);
 
-    String::from(format!("Status: {}{}", year, week_number))
+    String::from(format!("CalWeek: {}{}", year, week_number))
 }
 
-pub fn get_current_status() -> String {
-    get_status_by_date(Utc::now().date_naive())
+pub fn get_current_calweek() -> String {
+    get_calweek_by_date(Utc::now().date_naive())
 }
 
-pub fn get_monday_and_sunday(status: &str) -> String {
-    let year: i32 = status[..2].parse::<i32>().unwrap() + 2000;
-    let week_number: u32 = status[status.len() - 2..].parse::<u32>().unwrap();
+pub fn get_monday_and_sunday(calweek: &str) -> String {
+    let year: i32 = calweek[..2].parse::<i32>().unwrap() + 2000;
+    let week_number: u32 = calweek[calweek.len() - 2..].parse::<u32>().unwrap();
 
     let monday_date: NaiveDate = NaiveDate::from_isoywd_opt(year, week_number, Weekday::Mon).unwrap();
     let sunday_date: NaiveDate = NaiveDate::from_isoywd_opt(year, week_number, Weekday::Sun).unwrap();

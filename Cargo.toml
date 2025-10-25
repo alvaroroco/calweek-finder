@@ -1,5 +1,5 @@
 [package]
-name = "status_finder"
+name = "calweek_finder"
 version = "2.0.0"
 edition = "2021"
 
