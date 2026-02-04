@@ -27,6 +27,9 @@ Por lo tanto, un "calweek" de "2348" se refiere a la semana 48 del año 2023.
 ## Uso
 
 1. **Interfaz en Terminal (TUI)**: Si no introduces ningún argumento al ejecutar el programa, aparecerá una interfaz en la terminal que te permitirá elegir si quieres convertir de fecha a calweek o de calweek a fecha.
-2. **CalWeek Actual**: Si introduces "today", te devuelve el "calweek" actual.
-3. **Fecha a CalWeek**: Si introduces una fecha válida en uno de los formatos admitidos, te devuelve el "calweek" correspondiente a ese día.
-4. **Determinar Semana por CalWeek**: Si introduces un "calweek" válido, te devuelve el lunes y el domingo de esa semana específica.
+2. **Argumentos de Línea de Comandos (CLI)**:
+   - **Obtener CalWeek Actual**: `calweek today`
+   - **Fecha a CalWeek**: `calweek --date 2023-11-26`
+   - **CalWeek a Fecha**: `calweek --week 2348`
+3. **Salida JSON**: Añade el flag `--json` a cualquiera de los comandos anteriores para obtener la salida en formato JSON.
+   - Ejemplo: `calweek --date 2023-11-26 --json` -> `{"calweek":"2347","week_number":47,"year":"23"}`
