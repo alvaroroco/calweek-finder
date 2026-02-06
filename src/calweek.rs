@@ -32,9 +32,9 @@ fn get_week_number(date_obj: NaiveDate) -> u32 {
 }
 
 pub fn get_calweek_by_date(date: NaiveDate) -> CalWeekResult {
-    let year_str: String = format!("{:02}", date.year() % 100);
-    let week_number: u32 = get_week_number(date);
-    let calweek = format!("{}{}", year_str, week_number);
+    let year_str = format!("{:02}", date.year() % 100);
+    let week_number = get_week_number(date);
+    let calweek = format!("{}{:02}", year_str, week_number);
 
     CalWeekResult {
         calweek,
