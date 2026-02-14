@@ -22,7 +22,7 @@ pub fn questions() {
     match selections[selection] {
         "Get calweek by date" => {
             let user_date = match Input::<String>::with_theme(&ColorfulTheme::default())
-                .with_prompt("Enter the date (Day-Month-Year)")
+                .with_prompt("Enter date (YYYY-MM-DD, DD/MM/YYYY, MM/DD/YYYY, DD-MM-YYYY, DD.MM.YYYY; ambiguous slash dates like 01/02/2023 are rejected)")
                 .interact()
             {
                 Ok(value) => value,
