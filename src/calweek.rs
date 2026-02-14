@@ -1,4 +1,4 @@
-use chrono::{Datelike, NaiveDate, Utc, Weekday};
+use chrono::{Datelike, Local, NaiveDate, Weekday};
 use serde::Serialize;
 use std::fmt;
 
@@ -27,13 +27,10 @@ impl fmt::Display for WeekRangeResult {
     }
 }
 
-fn get_week_number(date_obj: NaiveDate) -> u32 {
-    date_obj.iso_week().week()
-}
-
 pub fn get_calweek_by_date(date: NaiveDate) -> CalWeekResult {
-    let year_str = format!("{:02}", date.year() % 100);
-    let week_number = get_week_number(date);
+    let iso_week = date.iso_week();
+    let year_str = format!("{:02}", iso_week.year().rem_euclid(100));
+    let week_number = iso_week.week();
     let calweek = format!("{year_str}{week_number:02}");
 
     CalWeekResult {
@@ -44,7 +41,7 @@ pub fn get_calweek_by_date(date: NaiveDate) -> CalWeekResult {
 }
 
 pub fn get_current_calweek() -> CalWeekResult {
-    get_calweek_by_date(Utc::now().date_naive())
+    get_calweek_by_date(Local::now().date_naive())
 }
 
 pub fn get_monday_and_sunday(calweek: &str) -> Result<WeekRangeResult, String> {
@@ -86,6 +83,16 @@ mod tests {
         assert_eq!(result.calweek, "2347");
         assert_eq!(result.week_number, 47);
         assert_eq!(result.year, "23");
+    }
+
+    #[test]
+    fn uses_iso_year_for_boundary_dates() {
+        let date = NaiveDate::from_ymd_opt(2021, 1, 1).expect("valid date");
+        let result = get_calweek_by_date(date);
+
+        assert_eq!(result.calweek, "2053");
+        assert_eq!(result.week_number, 53);
+        assert_eq!(result.year, "20");
     }
 
     #[test]

@@ -14,14 +14,15 @@ struct Cli {
     json: bool,
 
     /// Date to convert to CalWeek (e.g., 2023-11-26)
-    #[arg(long, short)]
+    #[arg(long, short, conflicts_with_all = ["week", "input"])]
     date: Option<String>,
 
     /// CalWeek to convert to Date (e.g., 2348)
-    #[arg(long, short)]
+    #[arg(long, short, conflicts_with_all = ["date", "input"])]
     week: Option<String>,
 
     /// Input value: "today", a calweek like 2348, or a date
+    #[arg(conflicts_with_all = ["date", "week"])]
     input: Option<String>,
 }
 
@@ -117,7 +118,8 @@ fn handle_today(json_output: bool) {
 
 #[cfg(test)]
 mod tests {
-    use super::{classify_input, InputKind};
+    use super::{classify_input, Cli, InputKind};
+    use clap::Parser;
 
     #[test]
     fn classifies_today_input() {
@@ -134,5 +136,17 @@ mod tests {
     fn classifies_date_input() {
         assert_eq!(classify_input("2023-11-26"), InputKind::Date);
         assert_eq!(classify_input("abcd"), InputKind::Date);
+    }
+
+    #[test]
+    fn rejects_date_and_week_together() {
+        let parsed = Cli::try_parse_from(["calweek_finder", "--date", "2023-11-26", "--week", "2348"]);
+        assert!(parsed.is_err());
+    }
+
+    #[test]
+    fn rejects_explicit_flag_and_positional_input_together() {
+        let parsed = Cli::try_parse_from(["calweek_finder", "--date", "2023-11-26", "today"]);
+        assert!(parsed.is_err());
     }
 }
