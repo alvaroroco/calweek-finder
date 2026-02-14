@@ -25,6 +25,13 @@ struct Cli {
     input: Option<String>,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum InputKind {
+    Today,
+    Week,
+    Date,
+}
+
 fn main() {
     if env::args().len() <= 1 {
         ui::questions();
@@ -43,12 +50,20 @@ fn main() {
 }
 
 fn handle_input_conversion(input: &str, json_output: bool) {
+    match classify_input(input) {
+        InputKind::Today => handle_today(json_output),
+        InputKind::Week => handle_week_conversion(input, json_output),
+        InputKind::Date => handle_date_conversion(input, json_output),
+    }
+}
+
+fn classify_input(input: &str) -> InputKind {
     if input.eq_ignore_ascii_case("today") {
-        handle_today(json_output);
+        InputKind::Today
     } else if input.len() == 4 && input.chars().all(|c| c.is_ascii_digit()) {
-        handle_week_conversion(input, json_output);
+        InputKind::Week
     } else {
-        handle_date_conversion(input, json_output);
+        InputKind::Date
     }
 }
 
@@ -97,5 +112,27 @@ fn handle_today(json_output: bool) {
         println!("{}", json!(result));
     } else {
         println!("{result}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{classify_input, InputKind};
+
+    #[test]
+    fn classifies_today_input() {
+        assert_eq!(classify_input("today"), InputKind::Today);
+        assert_eq!(classify_input("TODAY"), InputKind::Today);
+    }
+
+    #[test]
+    fn classifies_week_input() {
+        assert_eq!(classify_input("2348"), InputKind::Week);
+    }
+
+    #[test]
+    fn classifies_date_input() {
+        assert_eq!(classify_input("2023-11-26"), InputKind::Date);
+        assert_eq!(classify_input("abcd"), InputKind::Date);
     }
 }

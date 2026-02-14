@@ -72,3 +72,38 @@ pub fn get_monday_and_sunday(calweek: &str) -> Result<WeekRangeResult, String> {
         sunday: str_sunday,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::NaiveDate;
+
+    #[test]
+    fn converts_date_to_calweek() {
+        let date = NaiveDate::from_ymd_opt(2023, 11, 26).expect("valid date");
+        let result = get_calweek_by_date(date);
+
+        assert_eq!(result.calweek, "2347");
+        assert_eq!(result.week_number, 47);
+        assert_eq!(result.year, "23");
+    }
+
+    #[test]
+    fn rejects_non_numeric_calweek() {
+        let result = get_monday_and_sunday("abcd");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn rejects_out_of_range_iso_week() {
+        let result = get_monday_and_sunday("2454");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn converts_valid_calweek_to_date_range() {
+        let result = get_monday_and_sunday("2348").expect("valid calweek");
+        assert_eq!(result.monday, "27.11.2023");
+        assert_eq!(result.sunday, "03.12.2023");
+    }
+}
