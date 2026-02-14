@@ -34,7 +34,7 @@ fn get_week_number(date_obj: NaiveDate) -> u32 {
 pub fn get_calweek_by_date(date: NaiveDate) -> CalWeekResult {
     let year_str = format!("{:02}", date.year() % 100);
     let week_number = get_week_number(date);
-    let calweek = format!("{}{:02}", year_str, week_number);
+    let calweek = format!("{year_str}{week_number:02}");
 
     CalWeekResult {
         calweek,
@@ -47,18 +47,28 @@ pub fn get_current_calweek() -> CalWeekResult {
     get_calweek_by_date(Utc::now().date_naive())
 }
 
-pub fn get_monday_and_sunday(calweek: &str) -> WeekRangeResult {
-    let year: i32 = calweek[..2].parse::<i32>().unwrap() + 2000;
-    let week_number: u32 = calweek[calweek.len() - 2..].parse::<u32>().unwrap();
+pub fn get_monday_and_sunday(calweek: &str) -> Result<WeekRangeResult, String> {
+    if calweek.len() != 4 || !calweek.chars().all(|c| c.is_ascii_digit()) {
+        return Err(String::from("CalWeek must be a 4-digit value (e.g., 2348)"));
+    }
 
-    let monday_date: NaiveDate = NaiveDate::from_isoywd_opt(year, week_number, Weekday::Mon).unwrap();
-    let sunday_date: NaiveDate = NaiveDate::from_isoywd_opt(year, week_number, Weekday::Sun).unwrap();
+    let year = calweek[..2]
+        .parse::<i32>()
+        .map_err(|_| String::from("CalWeek year is not valid"))?
+        + 2000;
+    let week_number = calweek[2..]
+        .parse::<u32>()
+        .map_err(|_| String::from("CalWeek week number is not valid"))?;
 
-    let str_monday: String = monday_date.format("%d.%m.%Y").to_string();
-    let str_sunday: String = sunday_date.format("%d.%m.%Y").to_string();
+    let monday_date = NaiveDate::from_isoywd_opt(year, week_number, Weekday::Mon)
+        .ok_or_else(|| String::from("CalWeek week number is out of ISO range"))?;
+    let sunday_date = NaiveDate::from_isoywd_opt(year, week_number, Weekday::Sun)
+        .ok_or_else(|| String::from("CalWeek week number is out of ISO range"))?;
+    let str_monday = monday_date.format("%d.%m.%Y").to_string();
+    let str_sunday = sunday_date.format("%d.%m.%Y").to_string();
 
-    WeekRangeResult {
+    Ok(WeekRangeResult {
         monday: str_monday,
         sunday: str_sunday,
-    }
+    })
 }

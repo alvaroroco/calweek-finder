@@ -64,20 +64,30 @@ fn handle_date_conversion(date_str: &str, json_output: bool) {
         }
         None => {
             if json_output {
-                println!("{}", json!({ "error": "Date not valid" }));
+                println!("{}", json!({ "error": "Invalid date" }));
             } else {
-                println!("Date no valid");
+                println!("Invalid date");
             }
         }
     }
 }
 
 fn handle_week_conversion(week_str: &str, json_output: bool) {
-    let result = calweek::get_monday_and_sunday(week_str);
-    if json_output {
-        println!("{}", json!(result));
-    } else {
-        println!("{result}");
+    match calweek::get_monday_and_sunday(week_str) {
+        Ok(result) => {
+            if json_output {
+                println!("{}", json!(result));
+            } else {
+                println!("{result}");
+            }
+        }
+        Err(error) => {
+            if json_output {
+                println!("{}", json!({ "error": error }));
+            } else {
+                println!("{error}");
+            }
+        }
     }
 }
 
