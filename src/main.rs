@@ -2,37 +2,38 @@ mod dates;
 mod calweek;
 mod ui;
 
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use serde_json::json;
 use std::env;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
-    #[command(subcommand)]
-    command: Option<Commands>,
-
     /// Output in JSON format
     #[arg(long, global = true)]
     json: bool,
 
     /// Date to convert to CalWeek (e.g., 2023-11-26)
-    #[arg(long, short)]
+    #[arg(long, short, conflicts_with_all = ["week", "input"])]
     date: Option<String>,
 
     /// CalWeek to convert to Date (e.g., 2348)
-    #[arg(long, short)]
+    #[arg(long, short, conflicts_with_all = ["date", "input"])]
     week: Option<String>,
+
+    /// Input value: "today", a calweek like 2348, or a date
+    #[arg(conflicts_with_all = ["date", "week"])]
+    input: Option<String>,
 }
 
-#[derive(Subcommand)]
-enum Commands {
-    /// Get current CalWeek
+#[derive(Debug, PartialEq, Eq)]
+enum InputKind {
     Today,
+    Week,
+    Date,
 }
 
 fn main() {
-    // Check if any arguments were provided (other than the program name)
     if env::args().len() <= 1 {
         ui::questions();
         return;
@@ -40,31 +41,30 @@ fn main() {
 
     let cli = Cli::parse();
 
-    // Handle flags directly if no subcommand is used but flags are present
     if let Some(date_str) = cli.date {
         handle_date_conversion(&date_str, cli.json);
     } else if let Some(week_str) = cli.week {
         handle_week_conversion(&week_str, cli.json);
-    } else {
-        match cli.command {
-            Some(Commands::Today) => handle_today(cli.json),
-            None => {
-                // If we are here, it means args were provided but didn't match known flags/commands perfectly
-                // or maybe just --json was passed without a command.
-                // However, clap usually handles help/errors.
-                // For backward compatibility, we could try to parse the first arg as the old style
-                // but since we are moving to clap, let's stick to the new interface or TUI.
-                // But wait, the original code allowed `calweek 2348` or `calweek today`.
-                // Let's try to support that if possible, or just rely on the new flags.
-                // Given the request was to add CLI args like --date, I will prioritize that.
-                // If the user passes "today" as a positional arg, clap might fail if not configured.
-                // Let's keep it simple: use the flags.
+    } else if let Some(input) = cli.input {
+        handle_input_conversion(&input, cli.json);
+    }
+}
 
-                // Fallback for "today" as a positional arg if it was passed and not caught by clap as a subcommand
-                // Actually, clap will error if it sees an unknown positional arg.
-                // So we rely on the user using the flags or the TUI.
-            }
-        }
+fn handle_input_conversion(input: &str, json_output: bool) {
+    match classify_input(input) {
+        InputKind::Today => handle_today(json_output),
+        InputKind::Week => handle_week_conversion(input, json_output),
+        InputKind::Date => handle_date_conversion(input, json_output),
+    }
+}
+
+fn classify_input(input: &str) -> InputKind {
+    if input.eq_ignore_ascii_case("today") {
+        InputKind::Today
+    } else if input.len() == 4 && input.chars().all(|c| c.is_ascii_digit()) {
+        InputKind::Week
+    } else {
+        InputKind::Date
     }
 }
 
@@ -75,27 +75,35 @@ fn handle_date_conversion(date_str: &str, json_output: bool) {
             if json_output {
                 println!("{}", json!(result));
             } else {
-                println!("{}", result);
+                println!("{result}");
             }
         }
         None => {
             if json_output {
-                println!("{}", json!({ "error": "Date not valid" }));
+                println!("{}", json!({ "error": "Invalid date" }));
             } else {
-                println!("Date no valid");
+                println!("Invalid date");
             }
         }
     }
 }
 
 fn handle_week_conversion(week_str: &str, json_output: bool) {
-    // Basic validation could be added here or inside calweek
-    // For now, we trust calweek's unwrap (which we should fix later as per my advice, but for now we stick to the plan)
-    let result = calweek::get_monday_and_sunday(week_str);
-    if json_output {
-        println!("{}", json!(result));
-    } else {
-        println!("{}", result);
+    match calweek::get_monday_and_sunday(week_str) {
+        Ok(result) => {
+            if json_output {
+                println!("{}", json!(result));
+            } else {
+                println!("{result}");
+            }
+        }
+        Err(error) => {
+            if json_output {
+                println!("{}", json!({ "error": error }));
+            } else {
+                println!("{error}");
+            }
+        }
     }
 }
 
@@ -104,6 +112,41 @@ fn handle_today(json_output: bool) {
     if json_output {
         println!("{}", json!(result));
     } else {
-        println!("{}", result);
+        println!("{result}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{classify_input, Cli, InputKind};
+    use clap::Parser;
+
+    #[test]
+    fn classifies_today_input() {
+        assert_eq!(classify_input("today"), InputKind::Today);
+        assert_eq!(classify_input("TODAY"), InputKind::Today);
+    }
+
+    #[test]
+    fn classifies_week_input() {
+        assert_eq!(classify_input("2348"), InputKind::Week);
+    }
+
+    #[test]
+    fn classifies_date_input() {
+        assert_eq!(classify_input("2023-11-26"), InputKind::Date);
+        assert_eq!(classify_input("abcd"), InputKind::Date);
+    }
+
+    #[test]
+    fn rejects_date_and_week_together() {
+        let parsed = Cli::try_parse_from(["calweek_finder", "--date", "2023-11-26", "--week", "2348"]);
+        assert!(parsed.is_err());
+    }
+
+    #[test]
+    fn rejects_explicit_flag_and_positional_input_together() {
+        let parsed = Cli::try_parse_from(["calweek_finder", "--date", "2023-11-26", "today"]);
+        assert!(parsed.is_err());
     }
 }
