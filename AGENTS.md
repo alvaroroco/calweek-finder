@@ -1,11 +1,5 @@
 # AGENTS.md
 
-## Mandatory Instruction
-
-If you generate code or modify files, always run the GitButler update branches MCP tool first.
-If an operation is not possible with the GitButler MCP tools available in this environment, use the GitButler CLI (`but`) before falling back to `git`.
-Use `git` only as a last resort when neither GitButler MCP nor `but` can perform the required action.
-
 This file provides guidance to AI coding agents working in this repository.
 
 ## Project Overview
