@@ -23,6 +23,10 @@ struct Cli {
     /// CalWeek to convert to Date (e.g., 2348)
     #[arg(long, short)]
     week: Option<String>,
+
+    /// Value to auto-detect: 4 digits = CalWeek, date format = Date
+    #[arg(index = 1)]
+    value: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -45,25 +49,18 @@ fn main() {
         handle_date_conversion(&date_str, cli.json);
     } else if let Some(week_str) = cli.week {
         handle_week_conversion(&week_str, cli.json);
+    } else if let Some(value) = cli.value {
+        if value.len() == 4 {
+            handle_week_conversion(&value, cli.json);
+        } else if dates::str_to_date(&value).is_some() {
+            handle_date_conversion(&value, cli.json);
+        } else {
+            eprintln!("Could not detect format for '{}'. Use --date or --week explicitly.", value);
+        }
     } else {
         match cli.command {
             Some(Commands::Today) => handle_today(cli.json),
-            None => {
-                // If we are here, it means args were provided but didn't match known flags/commands perfectly
-                // or maybe just --json was passed without a command.
-                // However, clap usually handles help/errors.
-                // For backward compatibility, we could try to parse the first arg as the old style
-                // but since we are moving to clap, let's stick to the new interface or TUI.
-                // But wait, the original code allowed `calweek 2348` or `calweek today`.
-                // Let's try to support that if possible, or just rely on the new flags.
-                // Given the request was to add CLI args like --date, I will prioritize that.
-                // If the user passes "today" as a positional arg, clap might fail if not configured.
-                // Let's keep it simple: use the flags.
-
-                // Fallback for "today" as a positional arg if it was passed and not caught by clap as a subcommand
-                // Actually, clap will error if it sees an unknown positional arg.
-                // So we rely on the user using the flags or the TUI.
-            }
+            None => {}
         }
     }
 }
