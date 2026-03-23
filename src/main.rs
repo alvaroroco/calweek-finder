@@ -19,13 +19,13 @@ struct Cli {
     #[arg(long, short, conflicts_with_all = ["week", "input"])]
     date: Option<String>,
 
-    /// CalWeek (YYWW) to convert to Date, where YY is 2000-2099 (e.g., 2348)
+    /// CalWeek to convert to Date: 4 digits YYWW for week range (e.g., 2348), 5 digits YYWWD for specific day (e.g., 23482)
     #[arg(long, short, conflicts_with_all = ["date", "input"])]
     week: Option<String>,
 
-    /// Value to auto-detect: 4 digits = CalWeek, date format = Date
-    #[arg(index = 1)]
-    value: Option<String>,
+    /// Input value: "today", a calweek like 2348 or 26262, or a date
+    #[arg(conflicts_with_all = ["date", "week"])]
+    input: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -50,20 +50,45 @@ fn main() -> ExitCode {
     let result = if let Some(date_str) = cli.date {
         handle_date_conversion(&date_str, cli.json)
     } else if let Some(week_str) = cli.week {
-        handle_week_conversion(&week_str, cli.json);
-    } else if let Some(value) = cli.value {
-        if value.len() == 4 {
-            handle_week_conversion(&value, cli.json);
-        } else if dates::str_to_date(&value).is_some() {
-            handle_date_conversion(&value, cli.json);
-        } else {
-            eprintln!("Could not detect format for '{}'. Use --date or --week explicitly.", value);
-        }
+        handle_week_conversion(&week_str, cli.json)
+    } else if let Some(input) = cli.input {
+        handle_input_conversion(&input, cli.json)
     } else {
-        match cli.command {
-            Some(Commands::Today) => handle_today(cli.json),
-            None => {}
+        Ok(())
+    };
+
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            print_error(&error, cli.json);
+            ExitCode::from(1)
         }
+    }
+}
+
+fn should_start_interactive() -> bool {
+    should_start_interactive_for(io::stdin().is_terminal(), io::stdout().is_terminal())
+}
+
+fn should_start_interactive_for(stdin_is_tty: bool, stdout_is_tty: bool) -> bool {
+    stdin_is_tty && stdout_is_tty
+}
+
+fn handle_input_conversion(input: &str, json_output: bool) -> Result<(), String> {
+    match classify_input(input) {
+        InputKind::Today => handle_today(json_output),
+        InputKind::Week => handle_week_conversion(input, json_output),
+        InputKind::Date => handle_date_conversion(input, json_output),
+    }
+}
+
+fn classify_input(input: &str) -> InputKind {
+    if input.eq_ignore_ascii_case("today") {
+        InputKind::Today
+    } else if (input.len() == 4 || input.len() == 5) && input.chars().all(|c| c.is_ascii_digit()) {
+        InputKind::Week
+    } else {
+        InputKind::Date
     }
 }
 
@@ -79,12 +104,22 @@ fn handle_date_conversion(date_str: &str, json_output: bool) -> Result<(), Strin
 }
 
 fn handle_week_conversion(week_str: &str, json_output: bool) -> Result<(), String> {
-    match calweek::get_monday_and_sunday(week_str) {
-        Ok(result) => {
-            print_success(&result, json_output);
-            Ok(())
+    if week_str.len() == 5 {
+        match calweek::get_day_from_calweekday(week_str) {
+            Ok(result) => {
+                print_success(&result, json_output);
+                Ok(())
+            }
+            Err(error) => Err(error),
         }
-        Err(error) => Err(error),
+    } else {
+        match calweek::get_monday_and_sunday(week_str) {
+            Ok(result) => {
+                print_success(&result, json_output);
+                Ok(())
+            }
+            Err(error) => Err(error),
+        }
     }
 }
 
@@ -111,65 +146,5 @@ fn print_error(error: &str, json_output: bool) {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{
-        classify_input, handle_date_conversion, handle_week_conversion, should_start_interactive_for, Cli,
-        InputKind,
-    };
-    use clap::Parser;
-
-    #[test]
-    fn classifies_today_input() {
-        assert_eq!(classify_input("today"), InputKind::Today);
-        assert_eq!(classify_input("TODAY"), InputKind::Today);
-    }
-
-    #[test]
-    fn classifies_week_input() {
-        assert_eq!(classify_input("2348"), InputKind::Week);
-    }
-
-    #[test]
-    fn classifies_date_input() {
-        assert_eq!(classify_input("2023-11-26"), InputKind::Date);
-        assert_eq!(classify_input("abcd"), InputKind::Date);
-    }
-
-    #[test]
-    fn rejects_date_and_week_together() {
-        let parsed = Cli::try_parse_from(["calweek_finder", "--date", "2023-11-26", "--week", "2348"]);
-        assert!(parsed.is_err());
-    }
-
-    #[test]
-    fn rejects_explicit_flag_and_positional_input_together() {
-        let parsed = Cli::try_parse_from(["calweek_finder", "--date", "2023-11-26", "today"]);
-        assert!(parsed.is_err());
-    }
-
-    #[test]
-    fn date_conversion_returns_error_for_invalid_date() {
-        let result = handle_date_conversion("2023-13-40", false);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn week_conversion_returns_error_for_invalid_week() {
-        let result = handle_week_conversion("2454", false);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn only_digits_with_len_four_are_treated_as_weeks() {
-        assert_ne!(classify_input("123"), InputKind::Week);
-        assert_ne!(classify_input("12345"), InputKind::Week);
-    }
-
-    #[test]
-    fn interactive_mode_requires_tty_on_stdin_and_stdout() {
-        assert!(should_start_interactive_for(true, true));
-        assert!(!should_start_interactive_for(true, false));
-        assert!(!should_start_interactive_for(false, true));
-        assert!(!should_start_interactive_for(false, false));
-    }
-}
+#[path = "main_tests.rs"]
+mod tests;
