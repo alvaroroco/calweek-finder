@@ -6,29 +6,53 @@ use crate::calweek;
 pub fn questions() {
     let selections: &[&str; 2] = &["Get date by calweek", "Get calweek by date"];
 
-    let selection: usize = Select::with_theme(&ColorfulTheme::default())
+    let selection = match Select::with_theme(&ColorfulTheme::default())
         .with_prompt("Choose an action")
-        .default(0).items(&selections[..])
-        .interact().unwrap();
+        .default(0)
+        .items(&selections[..])
+        .interact()
+    {
+        Ok(choice) => choice,
+        Err(error) => {
+            eprintln!("Failed to read selection: {error}");
+            return;
+        }
+    };
 
     match selections[selection] {
         "Get calweek by date" => {
-            let user_date: String = Input::<String>::with_theme(&ColorfulTheme::default())
-                .with_prompt("Enter the date (Day-Month-Year)")
-                .interact().unwrap();
+            let user_date = match Input::<String>::with_theme(&ColorfulTheme::default())
+                .with_prompt("Enter date (YYYY-MM-DD, DD/MM/YYYY, MM/DD/YYYY, DD-MM-YYYY, DD.MM.YYYY; ambiguous slash dates like 01/02/2023 are rejected)")
+                .interact()
+            {
+                Ok(value) => value,
+                Err(error) => {
+                    eprintln!("Failed to read date: {error}");
+                    return;
+                }
+            };
 
             match dates::str_to_date(&user_date) {
                 Some(date) => println!("{}", calweek::get_calweek_by_date(date)),
-                None => println!("Date no valid"),
+                None => println!("Invalid date"),
             }
         }
         "Get date by calweek" => {
-            let user_calweek: String = Input::with_theme(&ColorfulTheme::default())
+            let user_calweek: String = match Input::with_theme(&ColorfulTheme::default())
                 .with_prompt("Enter the calweek")
                 .interact_text()
-                .unwrap();
+            {
+                Ok(value) => value,
+                Err(error) => {
+                    eprintln!("Failed to read calweek: {error}");
+                    return;
+                }
+            };
 
-            println!("{}", calweek::get_monday_and_sunday(&user_calweek));
+            match calweek::get_monday_and_sunday(&user_calweek) {
+                Ok(result) => println!("{result}"),
+                Err(error) => println!("{error}"),
+            }
         }
         _ => unreachable!(),
     }
