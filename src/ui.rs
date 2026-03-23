@@ -1,7 +1,6 @@
 use dialoguer::{theme::ColorfulTheme, Input, Select};
 
-use crate::dates;
-use crate::calweek;
+use crate::app;
 
 pub fn questions() {
     let selections: &[&str; 2] = &["Get date by calweek", "Get calweek by date"];
@@ -32,14 +31,14 @@ pub fn questions() {
                 }
             };
 
-            match dates::str_to_date(&user_date) {
-                Some(date) => println!("{}", calweek::get_calweek_by_date(date)),
-                None => println!("Invalid date"),
+            match app::process_date(&user_date) {
+                Ok(output) => println!("{}", crate::format_output(&output)),
+                Err(e) => println!("{e}"),
             }
         }
         "Get date by calweek" => {
             let user_calweek: String = match Input::with_theme(&ColorfulTheme::default())
-                .with_prompt("Enter the calweek")
+                .with_prompt("Enter the calweek (4 digits for week range, 5 digits for specific day)")
                 .interact_text()
             {
                 Ok(value) => value,
@@ -49,9 +48,9 @@ pub fn questions() {
                 }
             };
 
-            match calweek::get_monday_and_sunday(&user_calweek) {
-                Ok(result) => println!("{result}"),
-                Err(error) => println!("{error}"),
+            match app::process_week(&user_calweek) {
+                Ok(output) => println!("{}", crate::format_output(&output)),
+                Err(e) => println!("{e}"),
             }
         }
         _ => unreachable!(),

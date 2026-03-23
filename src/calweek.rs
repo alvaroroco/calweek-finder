@@ -1,6 +1,5 @@
 use chrono::{Datelike, Local, NaiveDate, Weekday};
 use serde::Serialize;
-use std::fmt;
 
 #[derive(Serialize, Debug)]
 pub struct CalWeekResult {
@@ -9,22 +8,10 @@ pub struct CalWeekResult {
     pub week_number: u32,
 }
 
-impl fmt::Display for CalWeekResult {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CalWeek: {}", self.calweek)
-    }
-}
-
 #[derive(Serialize, Debug)]
 pub struct WeekRangeResult {
     pub monday: String,
     pub sunday: String,
-}
-
-impl fmt::Display for WeekRangeResult {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Monday: {}\nSunday: {}", self.monday, self.sunday)
-    }
 }
 
 pub fn get_calweek_by_date(date: NaiveDate) -> CalWeekResult {
@@ -48,12 +35,6 @@ pub fn get_current_calweek() -> CalWeekResult {
 pub struct CalWeekDayResult {
     pub weekday: String,
     pub date: String,
-}
-
-impl fmt::Display for CalWeekDayResult {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.weekday, self.date)
-    }
 }
 
 pub fn get_day_from_calweekday(calweek5: &str) -> Result<CalWeekDayResult, String> {

@@ -1,7 +1,9 @@
-mod dates;
+mod app;
 mod calweek;
+mod dates;
 mod ui;
 
+use app::AppOutput;
 use clap::Parser;
 use serde_json::json;
 use std::env;
@@ -28,13 +30,6 @@ struct Cli {
     input: Option<String>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-enum InputKind {
-    Today,
-    Week,
-    Date,
-}
-
 fn main() -> ExitCode {
     if env::args().len() <= 1 {
         if should_start_interactive() {
@@ -47,20 +42,25 @@ fn main() -> ExitCode {
     }
 
     let cli = Cli::parse();
+    let json_output = cli.json;
+
     let result = if let Some(date_str) = cli.date {
-        handle_date_conversion(&date_str, cli.json)
+        app::process_date(&date_str)
     } else if let Some(week_str) = cli.week {
-        handle_week_conversion(&week_str, cli.json)
+        app::process_week(&week_str)
     } else if let Some(input) = cli.input {
-        handle_input_conversion(&input, cli.json)
+        app::process_input(&input)
     } else {
-        Ok(())
+        return ExitCode::SUCCESS;
     };
 
     match result {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(output) => {
+            print_output(&output, json_output);
+            ExitCode::SUCCESS
+        }
         Err(error) => {
-            print_error(&error, cli.json);
+            print_error(&error, json_output);
             ExitCode::from(1)
         }
     }
@@ -74,66 +74,24 @@ fn should_start_interactive_for(stdin_is_tty: bool, stdout_is_tty: bool) -> bool
     stdin_is_tty && stdout_is_tty
 }
 
-fn handle_input_conversion(input: &str, json_output: bool) -> Result<(), String> {
-    match classify_input(input) {
-        InputKind::Today => handle_today(json_output),
-        InputKind::Week => handle_week_conversion(input, json_output),
-        InputKind::Date => handle_date_conversion(input, json_output),
+pub fn format_output(output: &AppOutput) -> String {
+    match output {
+        AppOutput::Calweek(r)   => format!("CalWeek: {}", r.calweek),
+        AppOutput::WeekRange(r) => format!("Monday: {}\nSunday: {}", r.monday, r.sunday),
+        AppOutput::WeekDay(r)   => format!("{}: {}", r.weekday, r.date),
     }
 }
 
-fn classify_input(input: &str) -> InputKind {
-    if input.eq_ignore_ascii_case("today") {
-        InputKind::Today
-    } else if (input.len() == 4 || input.len() == 5) && input.chars().all(|c| c.is_ascii_digit()) {
-        InputKind::Week
-    } else {
-        InputKind::Date
-    }
-}
-
-fn handle_date_conversion(date_str: &str, json_output: bool) -> Result<(), String> {
-    match dates::str_to_date(date_str) {
-        Some(date) => {
-            let result = calweek::get_calweek_by_date(date);
-            print_success(&result, json_output);
-            Ok(())
-        }
-        None => Err(String::from("Invalid date")),
-    }
-}
-
-fn handle_week_conversion(week_str: &str, json_output: bool) -> Result<(), String> {
-    if week_str.len() == 5 {
-        match calweek::get_day_from_calweekday(week_str) {
-            Ok(result) => {
-                print_success(&result, json_output);
-                Ok(())
-            }
-            Err(error) => Err(error),
-        }
-    } else {
-        match calweek::get_monday_and_sunday(week_str) {
-            Ok(result) => {
-                print_success(&result, json_output);
-                Ok(())
-            }
-            Err(error) => Err(error),
-        }
-    }
-}
-
-fn handle_today(json_output: bool) -> Result<(), String> {
-    let result = calweek::get_current_calweek();
-    print_success(&result, json_output);
-    Ok(())
-}
-
-fn print_success<T: serde::Serialize + std::fmt::Display>(value: &T, json_output: bool) {
+fn print_output(output: &AppOutput, json_output: bool) {
     if json_output {
-        println!("{}", json!(value));
+        let json_val = match output {
+            AppOutput::Calweek(r)   => json!(r),
+            AppOutput::WeekRange(r) => json!(r),
+            AppOutput::WeekDay(r)   => json!(r),
+        };
+        println!("{json_val}");
     } else {
-        println!("{value}");
+        println!("{}", format_output(output));
     }
 }
 
