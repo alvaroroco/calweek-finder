@@ -35,7 +35,9 @@ pub fn process_input(input: &str) -> Result<AppOutput, String> {
 pub fn process_date(date_str: &str) -> Result<AppOutput, String> {
     match dates::str_to_date(date_str) {
         Some(date) => Ok(AppOutput::Calweek(calweek::get_calweek_by_date(date))),
-        None => Err(String::from("Invalid date")),
+        None => Err(format!(
+            "Cannot parse date \"{date_str}\". Supported formats: YYYY-MM-DD, DD.MM.YYYY, DD-MM-YYYY, DD/MM/YYYY, MM/DD/YYYY\nNote: ambiguous slash dates (e.g. 01/02/2023) are rejected — use DD.MM.YYYY or YYYY-MM-DD"
+        )),
     }
 }
 

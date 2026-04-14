@@ -4,17 +4,37 @@ mod dates;
 mod ui;
 
 use app::AppOutput;
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use serde_json::json;
 use std::env;
 use std::io::{self, IsTerminal};
 use std::process::ExitCode;
 
+#[derive(ValueEnum, Clone, Debug)]
+enum OutputFormat {
+    /// Human-readable text (default)
+    Text,
+    /// Machine-readable JSON
+    Json,
+}
+
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
+#[command(after_help = "\
+EXAMPLES:
+  calweek today                         Current calweek
+  calweek 2348                          Date range for calweek 2348
+  calweek 23482                         Specific day (2=Tuesday) of calweek 2348
+  calweek 2023-11-26                    Calweek for a specific date
+  calweek --date 2023-11-26 -o json     JSON output for scripting
+  calweek --week 2348 -o json | jq .    Pipe JSON to jq")]
 struct Cli {
-    /// Output in JSON format
-    #[arg(long, global = true)]
+    /// Output format
+    #[arg(long, short = 'o', value_enum, default_value = "text", global = true)]
+    output: OutputFormat,
+
+    /// [Deprecated] Use -o json instead
+    #[arg(long, hide = true, global = true)]
     json: bool,
 
     /// Date to convert to CalWeek (e.g., 2023-11-26)
@@ -42,7 +62,7 @@ fn main() -> ExitCode {
     }
 
     let cli = Cli::parse();
-    let json_output = cli.json;
+    let json_output = cli.json || matches!(cli.output, OutputFormat::Json);
 
     let result = if let Some(date_str) = cli.date {
         app::process_date(&date_str)
