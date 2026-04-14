@@ -8,6 +8,7 @@ pub enum AppOutput {
     WeekDay(CalWeekDayResult),
 }
 
+#[derive(PartialEq)]
 enum InputKind {
     Today,
     Week,
@@ -22,6 +23,18 @@ fn classify_input(input: &str) -> InputKind {
     } else {
         InputKind::Date
     }
+}
+
+pub fn process_inputs(inputs: &[String]) -> Result<Vec<AppOutput>, String> {
+    let first_kind = classify_input(&inputs[0]);
+    for input in &inputs[1..] {
+        if classify_input(input) != first_kind {
+            return Err(format!(
+                "Mixed input types: \"{input}\" doesn't match the type of the first input. All inputs must be the same type (all calweeks, all dates, or \"today\")."
+            ));
+        }
+    }
+    inputs.iter().map(|i| process_input(i)).collect()
 }
 
 pub fn process_input(input: &str) -> Result<AppOutput, String> {

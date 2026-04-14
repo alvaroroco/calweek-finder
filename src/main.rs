@@ -14,8 +14,10 @@ use std::process::ExitCode;
 enum OutputFormat {
     /// Human-readable text (default)
     Text,
-    /// Machine-readable JSON
+    /// Machine-readable JSON array
     Json,
+    /// CSV with header row (useful for multiple inputs)
+    Csv,
 }
 
 #[derive(Parser)]
@@ -45,9 +47,9 @@ struct Cli {
     #[arg(long, short, conflicts_with_all = ["date", "input"])]
     week: Option<String>,
 
-    /// Input value: "today", a calweek like 2348 or 26262, or a date
-    #[arg(conflicts_with_all = ["date", "week"])]
-    input: Option<String>,
+    /// Input values: "today", calweeks like 2348 or 23482, or dates — all must be the same type
+    #[arg(conflicts_with_all = ["date", "week"], num_args(1..))]
+    input: Vec<String>,
 }
 
 fn main() -> ExitCode {
@@ -62,25 +64,25 @@ fn main() -> ExitCode {
     }
 
     let cli = Cli::parse();
-    let json_output = cli.json || matches!(cli.output, OutputFormat::Json);
+    let format = if cli.json { OutputFormat::Json } else { cli.output };
 
-    let result = if let Some(date_str) = cli.date {
-        app::process_date(&date_str)
+    let result: Result<Vec<AppOutput>, String> = if let Some(date_str) = cli.date {
+        app::process_date(&date_str).map(|o| vec![o])
     } else if let Some(week_str) = cli.week {
-        app::process_week(&week_str)
-    } else if let Some(input) = cli.input {
-        app::process_input(&input)
+        app::process_week(&week_str).map(|o| vec![o])
+    } else if !cli.input.is_empty() {
+        app::process_inputs(&cli.input)
     } else {
         return ExitCode::SUCCESS;
     };
 
     match result {
-        Ok(output) => {
-            print_output(&output, json_output);
+        Ok(outputs) => {
+            print_outputs(&outputs, &format);
             ExitCode::SUCCESS
         }
         Err(error) => {
-            print_error(&error, json_output);
+            print_error(&error, &format);
             ExitCode::from(1)
         }
     }
@@ -102,21 +104,49 @@ pub fn format_output(output: &AppOutput) -> String {
     }
 }
 
-fn print_output(output: &AppOutput, json_output: bool) {
-    if json_output {
-        let json_val = match output {
-            AppOutput::Calweek(r)   => json!(r),
-            AppOutput::WeekRange(r) => json!(r),
-            AppOutput::WeekDay(r)   => json!(r),
-        };
-        println!("{json_val}");
-    } else {
-        println!("{}", format_output(output));
+fn csv_header(output: &AppOutput) -> &'static str {
+    match output {
+        AppOutput::Calweek(_)   => "calweek,year,week_number",
+        AppOutput::WeekRange(_) => "monday,sunday",
+        AppOutput::WeekDay(_)   => "weekday,date",
     }
 }
 
-fn print_error(error: &str, json_output: bool) {
-    if json_output {
+fn csv_row(output: &AppOutput) -> String {
+    match output {
+        AppOutput::Calweek(r)   => format!("{},{},{}", r.calweek, r.year, r.week_number),
+        AppOutput::WeekRange(r) => format!("{},{}", r.monday, r.sunday),
+        AppOutput::WeekDay(r)   => format!("{},{}", r.weekday, r.date),
+    }
+}
+
+fn print_outputs(outputs: &[AppOutput], format: &OutputFormat) {
+    match format {
+        OutputFormat::Text => {
+            let parts: Vec<String> = outputs.iter().map(format_output).collect();
+            println!("{}", parts.join("\n"));
+        }
+        OutputFormat::Json => {
+            let json_vals: Vec<_> = outputs.iter().map(|o| match o {
+                AppOutput::Calweek(r)   => json!(r),
+                AppOutput::WeekRange(r) => json!(r),
+                AppOutput::WeekDay(r)   => json!(r),
+            }).collect();
+            println!("{}", json!(json_vals));
+        }
+        OutputFormat::Csv => {
+            if let Some(first) = outputs.first() {
+                println!("{}", csv_header(first));
+                for o in outputs {
+                    println!("{}", csv_row(o));
+                }
+            }
+        }
+    }
+}
+
+fn print_error(error: &str, format: &OutputFormat) {
+    if matches!(format, OutputFormat::Json) {
         println!("{}", json!({ "error": error }));
     } else {
         eprintln!("{error}");

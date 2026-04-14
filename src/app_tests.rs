@@ -1,4 +1,4 @@
-use super::{process_date, process_input, process_today, process_week, AppOutput};
+use super::{process_date, process_input, process_inputs, process_today, process_week, AppOutput};
 
 #[test]
 fn process_today_returns_calweek() {
@@ -80,4 +80,27 @@ fn process_input_classifies_date_string() {
 fn process_input_rejects_3_and_6_digit_strings() {
     assert!(process_input("123").is_err());
     assert!(process_input("123456").is_err());
+}
+
+#[test]
+fn process_inputs_returns_multiple_results() {
+    let inputs = vec!["2347".to_string(), "2348".to_string()];
+    let results = process_inputs(&inputs).expect("valid calweeks");
+    assert_eq!(results.len(), 2);
+    assert!(matches!(results[0], AppOutput::WeekRange(_)));
+    assert!(matches!(results[1], AppOutput::WeekRange(_)));
+}
+
+#[test]
+fn process_inputs_rejects_mixed_types() {
+    let inputs = vec!["2348".to_string(), "2023-11-26".to_string()];
+    assert!(process_inputs(&inputs).is_err());
+}
+
+#[test]
+fn process_inputs_single_input_works() {
+    let inputs = vec!["2023-11-26".to_string()];
+    let results = process_inputs(&inputs).expect("valid date");
+    assert_eq!(results.len(), 1);
+    assert!(matches!(results[0], AppOutput::Calweek(_)));
 }
