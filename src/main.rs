@@ -63,22 +63,22 @@ fn main() -> ExitCode {
         return ExitCode::from(2);
     }
 
-    let cli = Cli::parse();
-    let format = if cli.json { OutputFormat::Json } else { cli.output };
+    let Cli { json, output, date, week, input } = Cli::parse();
+    let format = if json { OutputFormat::Json } else { output };
 
-    let result: Result<Vec<AppOutput>, String> = if let Some(date_str) = cli.date {
+    let result: Result<Vec<AppOutput>, String> = if let Some(date_str) = date {
         app::process_date(&date_str).map(|o| vec![o])
-    } else if let Some(week_str) = cli.week {
+    } else if let Some(week_str) = week {
         app::process_week(&week_str).map(|o| vec![o])
-    } else if !cli.input.is_empty() {
-        app::process_inputs(&cli.input)
+    } else if !input.is_empty() {
+        app::process_inputs(&input)
     } else {
         return ExitCode::SUCCESS;
     };
 
     match result {
         Ok(outputs) => {
-            print_outputs(&outputs, &format);
+            print_outputs(&input, &outputs, &format);
             ExitCode::SUCCESS
         }
         Err(error) => {
@@ -120,11 +120,53 @@ fn csv_row(output: &AppOutput) -> String {
     }
 }
 
-fn print_outputs(outputs: &[AppOutput], format: &OutputFormat) {
+fn table_rows(inputs: &[String], outputs: &[AppOutput]) -> (Vec<&'static str>, Vec<Vec<String>>) {
+    let headers: Vec<&'static str> = match &outputs[0] {
+        AppOutput::Calweek(_)   => vec!["INPUT",      "CALWEEK", "YEAR", "WEEK"],
+        AppOutput::WeekRange(_) => vec!["CALWEEK",    "MONDAY",  "SUNDAY"],
+        AppOutput::WeekDay(_)   => vec!["CALWEEK_DAY","WEEKDAY", "DATE"],
+    };
+    let rows = inputs.iter().zip(outputs.iter()).map(|(input, output)| match output {
+        AppOutput::Calweek(r)   => vec![input.clone(), r.calweek.clone(), r.year.clone(), r.week_number.to_string()],
+        AppOutput::WeekRange(r) => vec![input.clone(), r.monday.clone(),  r.sunday.clone()],
+        AppOutput::WeekDay(r)   => vec![input.clone(), r.weekday.clone(), r.date.clone()],
+    }).collect();
+    (headers, rows)
+}
+
+fn print_table(inputs: &[String], outputs: &[AppOutput]) {
+    let (headers, rows) = table_rows(inputs, outputs);
+
+    let mut widths: Vec<usize> = headers.iter().map(|h| h.len()).collect();
+    for row in &rows {
+        for (i, cell) in row.iter().enumerate() {
+            widths[i] = widths[i].max(cell.len());
+        }
+    }
+
+    let fmt_row = |cells: &[&str]| -> String {
+        cells.iter().enumerate()
+            .map(|(i, c)| format!("{:<width$}", c, width = widths[i]))
+            .collect::<Vec<_>>()
+            .join("  ")
+    };
+
+    println!("{}", fmt_row(&headers.iter().map(|s| *s).collect::<Vec<_>>()));
+    println!("{}", widths.iter().map(|w| "-".repeat(*w)).collect::<Vec<_>>().join("  "));
+    for row in &rows {
+        println!("{}", fmt_row(&row.iter().map(|s| s.as_str()).collect::<Vec<_>>()));
+    }
+}
+
+fn print_outputs(inputs: &[String], outputs: &[AppOutput], format: &OutputFormat) {
     match format {
         OutputFormat::Text => {
-            let parts: Vec<String> = outputs.iter().map(format_output).collect();
-            println!("{}", parts.join("\n"));
+            if inputs.len() > 1 {
+                print_table(inputs, outputs);
+            } else {
+                let parts: Vec<String> = outputs.iter().map(format_output).collect();
+                println!("{}", parts.join("\n"));
+            }
         }
         OutputFormat::Json => {
             let json_vals: Vec<_> = outputs.iter().map(|o| match o {
