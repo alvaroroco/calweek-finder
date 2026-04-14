@@ -4,10 +4,11 @@ mod dates;
 mod ui;
 
 use app::AppOutput;
-use clap::{Parser, ValueEnum};
+use clap::{CommandFactory, Parser, ValueEnum};
+use clap_complete::{generate, Shell};
 use serde_json::json;
 use std::env;
-use std::io::{self, IsTerminal};
+use std::io::{self, BufRead, IsTerminal};
 use std::process::ExitCode;
 
 #[derive(ValueEnum, Clone, Debug)]
@@ -50,35 +51,55 @@ struct Cli {
     /// Input values: "today", calweeks like 2348 or 23482, or dates — all must be the same type
     #[arg(conflicts_with_all = ["date", "week"], num_args(1..))]
     input: Vec<String>,
+
+    /// Generate shell completions for the given shell and print to stdout
+    #[arg(long, value_enum, exclusive = true)]
+    completions: Option<Shell>,
 }
 
 fn main() -> ExitCode {
+    let stdin_is_tty = io::stdin().is_terminal();
+
     if env::args().len() <= 1 {
-        if should_start_interactive() {
+        if should_start_interactive_for(stdin_is_tty, io::stdout().is_terminal()) {
             ui::questions();
             return ExitCode::SUCCESS;
         }
-
-        eprintln!("No arguments provided in a non-interactive environment. Use --help.");
-        return ExitCode::from(2);
+        if stdin_is_tty {
+            eprintln!("No arguments provided in a non-interactive environment. Use --help.");
+            return ExitCode::from(2);
+        }
+        // stdin is piped with no flags — fall through with defaults
     }
 
-    let Cli { json, output, date, week, input } = Cli::parse();
+    let Cli { json, output, date, week, input, completions } = Cli::parse();
+
+    if let Some(shell) = completions {
+        generate(shell, &mut Cli::command(), "calweek", &mut io::stdout());
+        return ExitCode::SUCCESS;
+    }
+
     let format = if json { OutputFormat::Json } else { output };
+
+    let inputs: Vec<String> = if input.is_empty() && !stdin_is_tty {
+        read_stdin_inputs()
+    } else {
+        input
+    };
 
     let result: Result<Vec<AppOutput>, String> = if let Some(date_str) = date {
         app::process_date(&date_str).map(|o| vec![o])
     } else if let Some(week_str) = week {
         app::process_week(&week_str).map(|o| vec![o])
-    } else if !input.is_empty() {
-        app::process_inputs(&input)
+    } else if !inputs.is_empty() {
+        app::process_inputs(&inputs)
     } else {
         return ExitCode::SUCCESS;
     };
 
     match result {
         Ok(outputs) => {
-            print_outputs(&input, &outputs, &format);
+            print_outputs(&inputs, &outputs, &format);
             ExitCode::SUCCESS
         }
         Err(error) => {
@@ -88,8 +109,14 @@ fn main() -> ExitCode {
     }
 }
 
-fn should_start_interactive() -> bool {
-    should_start_interactive_for(io::stdin().is_terminal(), io::stdout().is_terminal())
+fn read_stdin_inputs() -> Vec<String> {
+    io::stdin()
+        .lock()
+        .lines()
+        .filter_map(|l| l.ok())
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .collect()
 }
 
 fn should_start_interactive_for(stdin_is_tty: bool, stdout_is_tty: bool) -> bool {
