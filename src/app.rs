@@ -11,15 +11,18 @@ pub enum AppOutput {
 #[derive(PartialEq)]
 enum InputKind {
     Today,
-    Week,
+    WeekRange,
+    WeekDay,
     Date,
 }
 
 fn classify_input(input: &str) -> InputKind {
     if input.eq_ignore_ascii_case("today") {
         InputKind::Today
-    } else if (input.len() == 4 || input.len() == 5) && input.chars().all(|c| c.is_ascii_digit()) {
-        InputKind::Week
+    } else if input.len() == 4 && input.chars().all(|c| c.is_ascii_digit()) {
+        InputKind::WeekRange
+    } else if input.len() == 5 && input.chars().all(|c| c.is_ascii_digit()) {
+        InputKind::WeekDay
     } else {
         InputKind::Date
     }
@@ -39,9 +42,10 @@ pub fn process_inputs(inputs: &[String]) -> Result<Vec<AppOutput>, String> {
 
 pub fn process_input(input: &str) -> Result<AppOutput, String> {
     match classify_input(input) {
-        InputKind::Today => Ok(process_today()),
-        InputKind::Week => process_week(input),
-        InputKind::Date => process_date(input),
+        InputKind::Today     => Ok(process_today()),
+        InputKind::WeekRange => process_week(input),
+        InputKind::WeekDay   => process_week(input),
+        InputKind::Date      => process_date(input),
     }
 }
 

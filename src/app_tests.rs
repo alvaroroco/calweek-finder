@@ -98,6 +98,12 @@ fn process_inputs_rejects_mixed_types() {
 }
 
 #[test]
+fn process_inputs_rejects_mixed_4digit_and_5digit_weeks() {
+    let inputs = vec!["2348".to_string(), "23482".to_string()];
+    assert!(process_inputs(&inputs).is_err());
+}
+
+#[test]
 fn process_inputs_single_input_works() {
     let inputs = vec!["2023-11-26".to_string()];
     let results = process_inputs(&inputs).expect("valid date");
